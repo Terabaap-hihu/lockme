@@ -225,3 +225,6 @@ jobs:
         with:
           gradle-version: '8.4'
 
+        with:
+          gradle-version: '8.4'
+
