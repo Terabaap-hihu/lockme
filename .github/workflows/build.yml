@@ -1,138 +1,29 @@
-name: Build Clean APK
-
-on:
-  push:
-    branches: [ main ]
-  workflow_dispatch:
-
+name: Build APK
+on: [push, workflow_dispatch]
 jobs:
   build:
     runs-on: ubuntu-latest
     steps:
-      - name: Generate Project
-        run: |
-          mkdir -p app/src/main/res/xml app/src/main/java/com/guard/firefoxlock
-
-          cat << 'END_FILE' > settings.gradle
-          pluginManagement { repositories { google(); mavenCentral(); gradlePluginPortal() } }
-          dependencyResolutionManagement { repositoriesMode.set(RepositoriesMode.FAIL_ON_PROJECT_REPOS); repositories { google(); mavenCentral() } }
-          rootProject.name = "FirefoxGuard120"
-          include ':app'
-          END_FILE
-
-          cat << 'END_FILE' > build.gradle
-          plugins { id 'com.android.application' version '8.2.0' apply false }
-          END_FILE
-
-          cat << 'END_FILE' > gradle.properties
-          android.useAndroidX=true
-          org.gradle.jvmargs=-Xmx2048m
-          END_FILE
-
-          cat << 'END_FILE' > app/build.gradle
-          plugins { id 'com.android.application' }
-          android {
-              namespace 'com.guard.firefoxlock'
-              compileSdk 34
-              defaultConfig { applicationId "com.guard.firefoxlock"; minSdk 24; targetSdk 34; versionCode 1; versionName "1.0" }
-              compileOptions { sourceCompatibility JavaVersion.VERSION_17; targetCompatibility JavaVersion.VERSION_17 }
-          }
-          dependencies { implementation 'androidx.appcompat:appcompat:1.6.1' }
-          END_FILE
-
-          cat << 'END_FILE' > raw_m.xml
-          <?xml version="1.0" encoding="utf-8"?>
-          <manifest xmlns_ZZ="http://android.com">
-              <application ZZ_allowBackup="false" ZZ_label="FirefoxGuard120" ZZ_theme="@style/Theme.AppCompat.NoActionBar">
-                  <activity ZZ_name=".MainActivity" ZZ_exported="true" ZZ_launchMode="singleTask" ZZ_excludeFromRecents="true">
-                      <intent-filter><action ZZ_name="android.intent.action.MAIN" /><category ZZ_name="android.intent.category.LAUNCHER" /></intent-filter>
-                      <intent-filter><action ZZ_name="android.intent.action.VIEW" /><category ZZ_name="android.intent.category.DEFAULT" /><category ZZ_name="android.intent.category.BROWSABLE" /><data ZZ_scheme="safelock" ZZ_host="trigger120" /></intent-filter>
-                  </activity>
-                  <service ZZ_name=".BrowserGuardService" ZZ_permission="android.permission.BIND_ACCESSIBILITY_SERVICE" ZZ_exported="true">
-                      <intent-filter><action ZZ_name="android.accessibilityservice.AccessibilityService" /></intent-filter>
-                      <meta-data ZZ_name="android.accessibilityservice" ZZ_resource="@xml/service_config" />
-                  </service>
-              </application>
-          </manifest>
-          END_FILE
-          sed -e 's/xmlns_ZZ/xmlns:android/g' -e 's/ZZ_/android:/g' raw_m.xml > app/src/main/AndroidManifest.xml
-
-          cat << 'END_FILE' > raw_s.xml
-          <?xml version="1.0" encoding="utf-8"?>
-                    cat << 'END_FILE' > app/src/main/java/com/guard/firefoxlock/MainActivity.java
-          package com.guard.firefoxlock;
-          import android.content.*; import android.graphics.Color; import android.net.Uri; import android.os.*; import android.provider.Settings; import android.view.*; import android.widget.*; import androidx.appcompat.app.AppCompatActivity;
-          public class MainActivity extends AppCompatActivity {
-              private static final long LOCK_MS = 120L * 60L * 1000L;
-              private TextView timerText, statusText; private Button permBtn; private Handler handler = new Handler();
-              @Override protected void onCreate(Bundle b) {
-                  super.onCreate(b);
-                  LinearLayout l = new LinearLayout(this); l.setOrientation(LinearLayout.VERTICAL); l.setGravity(Gravity.CENTER); l.setBackgroundColor(Color.parseColor("#1e272e")); l.setPadding(40,40,40,40);
-                  TextView ic = new TextView(this); ic.setText("LOCK"); ic.setTextSize(40); ic.setTextColor(Color.WHITE); ic.setGravity(Gravity.CENTER); l.addView(ic);
-                  statusText = new TextView(this); statusText.setTextColor(Color.parseColor("#ff4757")); statusText.setTextSize(20); statusText.setGravity(Gravity.CENTER); l.addView(statusText);
-                  timerText = new TextView(this); timerText.setTextColor(Color.parseColor("#2ed573")); timerText.setTextSize(42); timerText.setGravity(Gravity.CENTER); l.addView(timerText);
-                  permBtn = new Button(this); permBtn.setText("1. Accessibility Permission ON Karein"); permBtn.setOnClickListener(v -> startActivity(new Intent(Settings.ACTION_ACCESSIBILITY_SETTINGS))); l.addView(permBtn);
-                  setContentView(l); handleTrigger(getIntent()); startClock();
-              }
-              @Override protected void onNewIntent(Intent i) { super.onNewIntent(i); handleTrigger(i); }
-              private void handleTrigger(Intent i) {
-                  if (i != null && i.getData() != null) {
-                      Uri d = i.getData();
-                      if ("safelock".equals(d.getScheme()) && "trigger120".equals(d.getHost())) {
-                          SharedPreferences p = getSharedPreferences("SafeLockPrefs", MODE_PRIVATE);
-                          if (p.getLong("lock_until", 0) <= System.currentTimeMillis()) p.edit().putLong("lock_until", System.currentTimeMillis() + LOCK_MS).apply();
-                      }
-                  }
-              }
-              private void startClock() {
-                  handler.postDelayed(new Runnable() { @Override public void run() {
-                      SharedPreferences p = getSharedPreferences("SafeLockPrefs", MODE_PRIVATE);
-                      long rem = p.getLong("lock_until", 0) - System.currentTimeMillis();
-                      if (rem > 0) { statusText.setText("FIREFOX LOCKED (120 MIN)"); timerText.setText(String.format("%02d:%02d", rem/60000, (rem%60000)/1000)); permBtn.setVisibility(View.GONE); }
-                      else { statusText.setText("READY (UNLOCKED)"); timerText.setText("00:00"); permBtn.setVisibility(View.VISIBLE); }
-                      handler.postDelayed(this, 1000);
-                  }}, 200);
-              }
-              @Override public void onBackPressed() { if (getSharedPreferences("SafeLockPrefs", MODE_PRIVATE).getLong("lock_until", 0) <= System.currentTimeMillis()) super.onBackPressed(); }
-          }
-          END_FILE
-
-          cat << 'END_FILE' > app/src/main/java/com/guard/firefoxlock/BrowserGuardService.java
-          package com.guard.firefoxlock;
-          import android.accessibilityservice.AccessibilityService; import android.content.*; import android.view.accessibility.AccessibilityEvent; import java.util.*;
-          public class BrowserGuardService extends AccessibilityService {
-              private static final List<String> B = Arrays.asList("org.mozilla.firefox", "org.mozilla.fenix");
-              @Override public void onAccessibilityEvent(AccessibilityEvent e) {
-                  if (e.getPackageName() == null) return;
-                  if (getSharedPreferences("SafeLockPrefs", MODE_PRIVATE).getLong("lock_until", 0) > System.currentTimeMillis() && B.contains(e.getPackageName().toString())) {
-                      performGlobalAction(GLOBAL_ACTION_HOME);
-                      Intent i = new Intent(this, MainActivity.class); i.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK | Intent.FLAG_ACTIVITY_CLEAR_TOP); startActivity(i);
-                  }
-              }
-              @Override public void onInterrupt() {}
-          }
-          END_FILE
-
-      - name: Set up JDK 17
-        uses: actions/setup-java@v4
+      - uses: actions/setup-java@v4
         with:
           java-version: '17'
           distribution: 'temurin'
-
-      - name: Setup Gradle
-        uses: gradle/actions/setup-gradle@v4
+      - uses: gradle/actions/setup-gradle@v4
         with:
           gradle-version: '8.4'
-
-      - name: Build Debug APK
-        run: gradle assembleDebug
-
-      - name: Upload APK
-        uses: actions/upload-artifact@v4
+      - name: Make Project and Build
+        run: |
+          mkdir -p app/src/main/res/xml app/src/main/java/com/guard/firefoxlock
+          printf 'pluginManagement { repositories { google(); mavenCentral(); gradlePluginPortal() } }\ndependencyResolutionManagement { repositoriesMode.set(RepositoriesMode.FAIL_ON_PROJECT_REPOS); repositories { google(); mavenCentral() } }\nrootProject.name = "FirefoxGuard120"\ninclude ":app"\n' > settings.gradle
+          printf 'plugins { id "com.android.application" version "8.2.0" apply false }\n' > build.gradle
+          printf 'android.useAndroidX=true\norg.gradle.jvmargs=-Xmx2048m\n' > gradle.properties
+          printf 'plugins { id "com.android.application" }\nandroid { namespace "com.guard.firefoxlock"; compileSdk 34; defaultConfig { applicationId "com.guard.firefoxlock"; minSdk 24; targetSdk 34; versionCode 1; versionName "1.0" }; compileOptions { sourceCompatibility JavaVersion.VERSION_17; targetCompatibility JavaVersion.VERSION_17 } }\ndependencies { implementation "androidx.appcompat:appcompat:1.6.1" }\n' > app/build.gradle
+          printf '<?xml version="1.0" encoding="utf-8"?><manifest xmlns:android="http://android.com"><application android:allowBackup="false" android:label="FirefoxGuard120" android:theme="@style/Theme.AppCompat.NoActionBar"><activity android:name=".MainActivity" android:exported="true" android:launchMode="singleTask" android:excludeFromRecents="true"><intent-filter><action android:name="android.intent.action.MAIN"/><category android:name="android.intent.category.LAUNCHER"/></intent-filter><intent-filter><action android:name="android.intent.action.VIEW"/><category android:name="android.intent.category.DEFAULT"/><category android:name="android.intent.category.BROWSABLE"/><data android:scheme="safelock" android:host="trigger120"/></intent-filter></activity><service android:name=".BrowserGuardService" android:permission="android.permission.BIND_ACCESSIBILITY_SERVICE" android:exported="true"><intent-filter><action android:name="android.accessibilityservice.AccessibilityService"/></intent-filter><meta-data android:name="android.accessibilityservice" android:resource="@xml/service_config"/></service></application></manifest>' > app/src/main/AndroidManifest.xml
+          printf '<?xml version="1.0" encoding="utf-8"?><accessibility-service xmlns:android="http://android.com" android:accessibilityEventTypes="typeWindowStateChanged" android:accessibilityFeedbackType="feedbackGeneric" android:canRetrieveWindowContent="false" android:notificationTimeout="100"/>' > app/src/main/res/xml/service_config.xml
+          printf 'package com.guard.firefoxlock; import android.content.*; import android.graphics.Color; import android.net.Uri; import android.os.*; import android.provider.Settings; import android.view.*; import android.widget.*; import androidx.appcompat.app.AppCompatActivity; public class MainActivity extends AppCompatActivity { private static final long LOCK_MS = 120L * 60L * 1000L; private TextView timerText, statusText; private Button permBtn; private Handler handler = new Handler(); @Override protected void onCreate(Bundle b) { super.onCreate(b); LinearLayout l = new LinearLayout(this); l.setOrientation(LinearLayout.VERTICAL); l.setGravity(Gravity.CENTER); l.setBackgroundColor(Color.parseColor("#1e272e")); l.setPadding(40,40,40,40); TextView ic = new TextView(this); ic.setText("LOCK"); ic.setTextSize(40); ic.setTextColor(Color.WHITE); ic.setGravity(Gravity.CENTER); l.addView(ic); statusText = new TextView(this); statusText.setTextColor(Color.parseColor("#ff4757")); statusText.setTextSize(20); statusText.setGravity(Gravity.CENTER); l.addView(statusText); timerText = new TextView(this); timerText.setTextColor(Color.parseColor("#2ed573")); timerText.setTextSize(42); timerText.setGravity(Gravity.CENTER); l.addView(timerText); permBtn = new Button(this); permBtn.setText("Accessibility Permission ON Karein"); permBtn.setOnClickListener(v -> startActivity(new Intent(Settings.ACTION_ACCESSIBILITY_SETTINGS))); l.addView(permBtn); setContentView(l); handleTrigger(getIntent()); startClock(); } @Override protected void onNewIntent(Intent i) { super.onNewIntent(i); handleTrigger(i); } private void handleTrigger(Intent i) { if (i != null && i.getData() != null) { Uri d = i.getData(); if ("safelock".equals(d.getScheme()) && "trigger120".equals(d.getHost())) { SharedPreferences p = getSharedPreferences("SafeLockPrefs", MODE_PRIVATE); if (p.getLong("lock_until", 0) <= System.currentTimeMillis()) p.edit().putLong("lock_until", System.currentTimeMillis() + LOCK_MS).apply(); } } } private void startClock() { handler.postDelayed(new Runnable() { @Override public void run() { SharedPreferences p = getSharedPreferences("SafeLockPrefs", MODE_PRIVATE); long rem = p.getLong("lock_until", 0) - System.currentTimeMillis(); if (rem > 0) { statusText.setText("FIREFOX LOCKED"); timerText.setText(String.format("%%02d:%%02d", rem/60000, (rem%%60000)/1000)); permBtn.setVisibility(View.GONE); } else { statusText.setText("READY"); timerText.setText("00:00"); permBtn.setVisibility(View.VISIBLE); } handler.postDelayed(this, 1000); } }, 200); } @Override public void onBackPressed() { if (getSharedPreferences("SafeLockPrefs", MODE_PRIVATE).getLong("lock_until", 0) <= System.currentTimeMillis()) super.onBackPressed(); } }' > app/src/main/java/com/guard/firefoxlock/MainActivity.java
+          printf 'package com.guard.firefoxlock; import android.accessibilityservice.AccessibilityService; import android.content.*; import android.view.accessibility.AccessibilityEvent; import java.util.*; public class BrowserGuardService extends AccessibilityService { private static final List<String> B = Arrays.asList("org.mozilla.firefox", "org.mozilla.fenix"); @Override public void onAccessibilityEvent(AccessibilityEvent e) { if (e.getPackageName() == null) return; if (getSharedPreferences("SafeLockPrefs", MODE_PRIVATE).getLong("lock_until", 0) > System.currentTimeMillis() && B.contains(e.getPackageName().toString())) { performGlobalAction(GLOBAL_ACTION_HOME); Intent i = new Intent(this, MainActivity.class); i.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK | Intent.FLAG_ACTIVITY_CLEAR_TOP); startActivity(i); } } @Override public void onInterrupt() {} }' > app/src/main/java/com/guard/firefoxlock/BrowserGuardService.java
+          gradle assembleDebug
+      - uses: actions/upload-artifact@v4
         with:
           name: FirefoxGuard120-APK
           path: app/build/outputs/apk/debug/app-debug.apk
-
-          <accessibility-service xmlns_ZZ="http://android.com" ZZ_accessibilityEventTypes="typeWindowStateChanged" ZZ_accessibilityFeedbackType="feedbackGeneric" ZZ_canRetrieveWindowContent="false" ZZ_notificationTimeout="100" />
-          END_FILE
-          sed -e 's/xmlns_ZZ/xmlns:android/g' -e 's/ZZ_/android:/g' raw_s.xml > app/src/main/res/xml/service_config.xml
