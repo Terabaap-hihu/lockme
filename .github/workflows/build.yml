@@ -222,6 +222,14 @@ jobs:
 
       - name: Setup Gradle
         uses: gradle/actions/setup-gradle@v4
+              - name: Release APK Direct Download
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: v1.0
+          files: app/build/outputs/apk/debug/app-debug.apk
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
         with:
           gradle-version: '8.4'
 
